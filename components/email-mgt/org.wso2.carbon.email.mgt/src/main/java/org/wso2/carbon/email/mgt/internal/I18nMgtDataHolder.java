@@ -16,6 +16,7 @@
 
 package org.wso2.carbon.email.mgt.internal;
 
+import org.wso2.carbon.identity.configuration.mgt.core.ConfigurationManager;
 import org.wso2.carbon.identity.core.persistence.registry.RegistryResourceMgtService;
 import org.wso2.carbon.identity.governance.model.NotificationTemplate;
 import org.wso2.carbon.registry.core.service.RegistryService;
@@ -27,6 +28,7 @@ import java.util.List;
 public class I18nMgtDataHolder{
     private RealmService realmService;
     private RegistryService registryService;
+    private ConfigurationManager configurationManager;
     private RegistryResourceMgtService registryResourceMgtService;
     private List<NotificationTemplate> defaultEmailTemplates = new ArrayList<>();
     private List<NotificationTemplate> defaultSMSTemplates = new ArrayList<>();
@@ -49,6 +51,16 @@ public class I18nMgtDataHolder{
 
     public void setRealmService(RealmService realmService) {
         this.realmService = realmService;
+    }
+
+    public ConfigurationManager getConfigurationManager() {
+
+        return configurationManager;
+    }
+
+    public void setConfigurationManager(ConfigurationManager configurationManager) {
+
+        this.configurationManager = configurationManager;
     }
 
     public RegistryService getRegistryService() {
