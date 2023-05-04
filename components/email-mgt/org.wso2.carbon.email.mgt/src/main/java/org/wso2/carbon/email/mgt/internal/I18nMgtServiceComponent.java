@@ -33,6 +33,7 @@ import org.wso2.carbon.email.mgt.SMSProviderPayloadTemplateManagerImpl;
 import org.wso2.carbon.email.mgt.constants.I18nMgtConstants;
 import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtException;
 import org.wso2.carbon.email.mgt.model.SMSProviderTemplate;
+import org.wso2.carbon.identity.configuration.mgt.core.ConfigurationManager;
 import org.wso2.carbon.identity.core.persistence.registry.RegistryResourceMgtService;
 import org.wso2.carbon.identity.governance.exceptions.notiification.NotificationTemplateManagerException;
 import org.wso2.carbon.identity.governance.model.NotificationTemplate;
@@ -367,6 +368,26 @@ public class I18nMgtServiceComponent {
             log.debug("Setting the Registry Service");
         }
         dataHolder.setRegistryService(registryService);
+    }
+
+    @Reference(
+            name = "confguration.mgt.service",
+            service = org.wso2.carbon.identity.configuration.mgt.core.ConfigurationManager.class,
+            cardinality = ReferenceCardinality.MANDATORY,
+            policy = ReferencePolicy.DYNAMIC,
+            unbind = "unsetConfigurationManager")
+    protected void setConfigurationManager(ConfigurationManager configurationManager) {
+        if (log.isDebugEnabled()) {
+            log.debug("Setting the Configuration Manager");
+        }
+        dataHolder.setConfigurationManager(configurationManager);
+    }
+
+    protected void unsetConfigurationManager(ConfigurationManager configurationManager) {
+        if (log.isDebugEnabled()) {
+            log.debug("UnSetting the Configuration Manager");
+        }
+        dataHolder.setConfigurationManager(null);
     }
 
     @Reference(

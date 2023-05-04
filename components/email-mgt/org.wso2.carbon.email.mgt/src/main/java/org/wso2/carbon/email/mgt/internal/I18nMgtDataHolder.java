@@ -55,6 +55,10 @@ public class I18nMgtDataHolder{
 
     public ConfigurationManager getConfigurationManager() {
 
+        if (configurationManager == null) {
+            throw new RuntimeException("Configuration Manager has not been set. Component has not initialized " +
+                    "properly.");
+        }
         return configurationManager;
     }
 
