@@ -18,6 +18,7 @@ package org.wso2.carbon.email.mgt.util;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -27,6 +28,8 @@ import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtServerException;
 import org.wso2.carbon.email.mgt.exceptions.I18nMgtEmailConfigException;
 import org.wso2.carbon.email.mgt.internal.I18nMgtDataHolder;
 import org.wso2.carbon.email.mgt.model.EmailTemplate;
+import org.wso2.carbon.identity.configuration.mgt.core.model.Attribute;
+import org.wso2.carbon.identity.configuration.mgt.core.model.ResourceFile;
 import org.wso2.carbon.identity.governance.model.NotificationTemplate;
 import org.wso2.carbon.registry.core.Collection;
 import org.wso2.carbon.registry.core.CollectionImpl;
@@ -35,6 +38,8 @@ import org.wso2.carbon.registry.core.Resource;
 import org.wso2.carbon.registry.core.ResourceImpl;
 import org.wso2.carbon.registry.core.exceptions.RegistryException;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -197,6 +202,70 @@ public class I18nEmailUtil {
         return emailTemplate;
     }
 
+    public static EmailTemplate getEmailTemplate(
+            org.wso2.carbon.identity.configuration.mgt.core.model.Resource resource, ResourceFile resourceFile,
+            InputStream inputStream)
+            throws I18nEmailMgtException {
+
+        EmailTemplate emailTemplate = new EmailTemplate();
+
+        String locale = resourceFile.getName();
+        String templateDisplayName = null;
+        String templateType = resource.getResourceName();
+
+        // Get attributes from resource
+        for (Attribute attribute : resource.getAttributes()) {
+            if (attribute.getKey().equals(I18nMgtConstants.EMAIL_TEMPLATE_TYPE_DISPLAY_NAME)) {
+                templateDisplayName = attribute.getValue();
+            } else if (attribute.getKey().equals(I18nMgtConstants.TEMPLATE_CONTENT_TYPE)) {
+                String contentType = attribute.getValue();
+                // Setting UTF-8 for all the email templates as it supports many languages and is widely adopted.
+                // There is little to no value addition making the charset configurable.
+                if (contentType != null && !contentType.toLowerCase().contains(CHARSET_CONSTANT)) {
+                    contentType = contentType + "; " + CHARSET_UTF_8;
+                }
+                emailTemplate.setEmailContentType(contentType);
+            }
+        }
+
+        emailTemplate.setTemplateType(templateType);
+        emailTemplate.setLocale(locale);
+        emailTemplate.setTemplateDisplayName(templateDisplayName);
+
+        // process email template content
+        if (inputStream != null) {
+            String templateContent;
+            try {
+                templateContent = IOUtils.toString(inputStream, String.valueOf(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                String errorMsg = "Error reading the content of the email template %s:%s";
+                throw new I18nEmailMgtServerException(String.format(errorMsg, templateDisplayName, locale), e);
+            }
+
+            String[] templateContentElements;
+            try {
+                templateContentElements = new Gson().fromJson(templateContent, String[].class);
+            } catch (JsonSyntaxException ex) {
+                String error = "Error deserializing '%s:%s' template from tenant registry.";
+                throw new I18nEmailMgtServerException(String.format(error, templateDisplayName, locale), ex);
+            }
+
+            if (templateContentElements == null || templateContentElements.length != 3) {
+                String errorMsg = "Template %s:%s body is in invalid format. Missing subject,body or footer.";
+                throw new I18nMgtEmailConfigException(String.format(errorMsg, templateDisplayName, locale));
+            }
+
+            emailTemplate.setSubject(templateContentElements[0]);
+            emailTemplate.setBody(templateContentElements[1]);
+            emailTemplate.setFooter(templateContentElements[2]);
+        } else {
+            String error = String.format("Unable to find any content in %s:%s email template.",
+                    templateDisplayName, locale);
+            log.error(error);
+        }
+        return emailTemplate;
+    }
+
     /**
      * @param normalizedTemplateName
      * @param templateDisplayName
@@ -207,6 +276,23 @@ public class I18nEmailUtil {
         collection.addProperty(I18nMgtConstants.EMAIL_TEMPLATE_NAME, normalizedTemplateName);
         collection.addProperty(I18nMgtConstants.EMAIL_TEMPLATE_TYPE_DISPLAY_NAME, templateDisplayName);
         return collection;
+    }
+
+    public static org.wso2.carbon.identity.configuration.mgt.core.model.Resource createTemplateType(
+            String resourceName, String templateDisplayName, String resourceType, String tenantDomain) {
+
+        org.wso2.carbon.identity.configuration.mgt.core.model.Resource notificationTemplateType =
+                new org.wso2.carbon.identity.configuration.mgt.core.model.Resource();
+        notificationTemplateType.setResourceName(resourceName);
+        notificationTemplateType.setTenantDomain(tenantDomain);
+        notificationTemplateType.setResourceType(resourceType);
+
+        // Set the attributes of the template type.
+        Attribute displayNameAttribute = new Attribute(I18nMgtConstants.EMAIL_TEMPLATE_TYPE_DISPLAY_NAME, templateDisplayName);
+        List<Attribute> attributes = new ArrayList<>();
+        attributes.add(displayNameAttribute);
+        notificationTemplateType.setAttributes(attributes);
+        return notificationTemplateType;
     }
 
     /**

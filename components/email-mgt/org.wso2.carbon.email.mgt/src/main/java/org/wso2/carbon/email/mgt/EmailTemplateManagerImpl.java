@@ -18,6 +18,7 @@ package org.wso2.carbon.email.mgt;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -32,6 +33,13 @@ import org.wso2.carbon.email.mgt.model.EmailTemplate;
 import org.wso2.carbon.email.mgt.util.I18nEmailUtil;
 import org.wso2.carbon.identity.base.IdentityRuntimeException;
 import org.wso2.carbon.identity.base.IdentityValidationUtil;
+import org.wso2.carbon.identity.configuration.mgt.core.ConfigurationManager;
+import org.wso2.carbon.identity.configuration.mgt.core.constant.ConfigurationConstants;
+import org.wso2.carbon.identity.configuration.mgt.core.exception.ConfigurationManagementException;
+import org.wso2.carbon.identity.configuration.mgt.core.model.Attribute;
+import org.wso2.carbon.identity.configuration.mgt.core.model.ResourceFile;
+import org.wso2.carbon.identity.configuration.mgt.core.model.ResourceTypeAdd;
+import org.wso2.carbon.identity.configuration.mgt.core.model.Resources;
 import org.wso2.carbon.identity.core.persistence.registry.RegistryResourceMgtService;
 import org.wso2.carbon.identity.governance.IdentityGovernanceUtil;
 import org.wso2.carbon.identity.governance.IdentityMgtConstants;
@@ -48,6 +56,9 @@ import org.wso2.carbon.registry.core.Resource;
 import org.wso2.carbon.registry.core.ResourceImpl;
 import org.wso2.carbon.registry.core.exceptions.RegistryException;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -57,7 +68,6 @@ import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.DEFAULT_EMAIL
 import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.DEFAULT_SMS_NOTIFICATION_LOCALE;
 import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.EMAIL_TEMPLATE_NAME;
 import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.EMAIL_TEMPLATE_PATH;
-import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.EMAIL_TEMPLATE_TYPE_DISPLAY_NAME;
 import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.EMAIL_TEMPLATE_TYPE_REGEX;
 import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.ErrorCodes.EMAIL_TEMPLATE_TYPE_NOT_FOUND;
 import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.SMS_TEMPLATE_PATH;
@@ -72,6 +82,7 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
 
     private I18nMgtDataHolder dataHolder = I18nMgtDataHolder.getInstance();
     private RegistryResourceMgtService resourceMgtService = dataHolder.getRegistryResourceMgtService();
+    private final ConfigurationManager configurationManager = dataHolder.getConfigurationManager();
 
     private static final Log log = LogFactory.getLog(EmailTemplateManagerImpl.class);
 
@@ -111,30 +122,44 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
             throws NotificationTemplateManagerException {
 
         validateDisplayNameOfTemplateType(displayName);
-        String normalizedDisplayName = I18nEmailUtil.getNormalizedName(displayName);
+        String normalizedTemplateName = I18nEmailUtil.getNormalizedName(displayName);
 
-        // Persist the template type to registry ie. create a directory.
-        String path = buildTemplateRootDirectoryPath(normalizedDisplayName, notificationChannel);
+        String resourceType = getResourceType(notificationChannel);
+
+        // Error messages
+        String code = I18nEmailUtil.prependOperationScenarioToErrorCode(
+                I18nMgtConstants.ErrorMessages.ERROR_CODE_ERROR_ADDING_TEMPLATE.getCode(),
+                I18nMgtConstants.ErrorScenarios.EMAIL_TEMPLATE_MANAGER);
+        String message =
+                String.format(I18nMgtConstants.ErrorMessages.ERROR_CODE_ERROR_ADDING_TEMPLATE.getMessage(),
+                        displayName, tenantDomain);
         try {
-            // Check whether a template exists with the same name.
-            if (resourceMgtService.isResourceExists(path, tenantDomain)) {
-                String code = I18nEmailUtil.prependOperationScenarioToErrorCode(
-                        I18nMgtConstants.ErrorMessages.ERROR_CODE_DUPLICATE_TEMPLATE_TYPE.getCode(),
-                        I18nMgtConstants.ErrorScenarios.EMAIL_TEMPLATE_MANAGER);
-                String message =
-                        String.format(I18nMgtConstants.ErrorMessages.ERROR_CODE_DUPLICATE_TEMPLATE_TYPE.getMessage(),
-                                displayName, tenantDomain);
+            // Check whether a template type exists with the same name.
+            if (isTemplateTypeExists(resourceType, normalizedTemplateName)) {
                 throw new NotificationTemplateManagerInternalException(code, message);
             }
-            Collection collection = I18nEmailUtil.createTemplateType(normalizedDisplayName, displayName);
-            resourceMgtService.putIdentityResource(collection, path, tenantDomain);
-        } catch (IdentityRuntimeException ex) {
-            String code = I18nEmailUtil.prependOperationScenarioToErrorCode(
-                    I18nMgtConstants.ErrorMessages.ERROR_CODE_ERROR_ADDING_TEMPLATE.getCode(),
-                    I18nMgtConstants.ErrorScenarios.EMAIL_TEMPLATE_MANAGER);
-            String message =
-                    String.format(I18nMgtConstants.ErrorMessages.ERROR_CODE_ERROR_ADDING_TEMPLATE.getMessage(),
-                            displayName, tenantDomain);
+            org.wso2.carbon.identity.configuration.mgt.core.model.Resource notificationTemplateType =
+                    I18nEmailUtil.createTemplateType(normalizedTemplateName, displayName, resourceType, tenantDomain);
+            configurationManager.addResource(resourceType, notificationTemplateType);
+        } catch (ConfigurationManagementException e) {
+            if (ConfigurationConstants.ErrorMessages.ERROR_CODE_RESOURCE_TYPE_DOES_NOT_EXISTS.getCode()
+                    .equals(e.getErrorCode())) {
+                // If the resource type does not exist, create the resource type and add the template type.
+                ResourceTypeAdd resourceTypeAdd = new ResourceTypeAdd();
+                resourceTypeAdd.setName(resourceType);
+                resourceTypeAdd.setDescription("Resource type for " + resourceType);
+                try {
+                    // Add the resource type.
+                    configurationManager.addResourceType(resourceTypeAdd);
+                    // Try adding the template type again.
+                    addNotificationTemplateType(displayName, notificationChannel, tenantDomain);
+                } catch (ConfigurationManagementException ex) {
+                    throw new NotificationTemplateManagerServerException(code, message);
+                }
+            } else {
+                throw new NotificationTemplateManagerServerException(code, message);
+            }
+        } catch (I18nEmailMgtException e) {
             throw new NotificationTemplateManagerServerException(code, message);
         }
     }
@@ -145,12 +170,11 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
 
         validateTemplateType(emailTemplateDisplayName, tenantDomain);
 
-        String templateType = I18nEmailUtil.getNormalizedName(emailTemplateDisplayName);
-        String path = EMAIL_TEMPLATE_PATH + PATH_SEPARATOR + templateType;
+        String normalizedTemplateName = I18nEmailUtil.getNormalizedName(emailTemplateDisplayName);
 
         try {
-            resourceMgtService.deleteIdentityResource(path, tenantDomain);
-        } catch (IdentityRuntimeException ex) {
+            configurationManager.deleteResource(EMAIL_TEMPLATE_PATH, normalizedTemplateName);
+        } catch (IdentityRuntimeException | ConfigurationManagementException ex) {
             String errorMsg = String.format
                     ("Error deleting email template type %s from %s tenant.", emailTemplateDisplayName, tenantDomain);
             handleServerException(errorMsg, ex);
@@ -167,18 +191,14 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
 
         try {
             List<String> templateTypeList = new ArrayList<>();
-            Collection collection = (Collection) resourceMgtService.getIdentityResource(EMAIL_TEMPLATE_PATH,
-                    tenantDomain);
+            Resources emailTemplateTypes = configurationManager.getResourcesByType(EMAIL_TEMPLATE_PATH);
 
-            for (String templatePath : collection.getChildren()) {
-                Resource templateTypeResource = resourceMgtService.getIdentityResource(templatePath, tenantDomain);
-                if (templateTypeResource != null) {
-                    String emailTemplateType = templateTypeResource.getProperty(EMAIL_TEMPLATE_TYPE_DISPLAY_NAME);
-                    templateTypeList.add(emailTemplateType);
-                }
+            for (org.wso2.carbon.identity.configuration.mgt.core.model.Resource emailTemplateType :
+                    emailTemplateTypes.getResources()) {
+                templateTypeList.add(emailTemplateType.getResourceName());
             }
             return templateTypeList;
-        } catch (IdentityRuntimeException | RegistryException ex) {
+        } catch (ConfigurationManagementException ex) {
             String errorMsg = String.format("Error when retrieving email template types of %s tenant.", tenantDomain);
             throw new I18nEmailMgtServerException(errorMsg, ex);
         }
@@ -190,16 +210,13 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         List<EmailTemplate> templateList = new ArrayList<>();
 
         try {
-            Collection baseDirectory = (Collection) resourceMgtService.getIdentityResource(EMAIL_TEMPLATE_PATH,
-                    tenantDomain);
+            Resources emailTemplateTypes = configurationManager.getResourcesByType(EMAIL_TEMPLATE_PATH);
 
-            if (baseDirectory != null) {
-                for (String templateTypeDirectory : baseDirectory.getChildren()) {
-                    templateList.addAll(
-                            getAllTemplatesOfTemplateTypeFromRegistry(templateTypeDirectory, tenantDomain));
-                }
+            for (org.wso2.carbon.identity.configuration.mgt.core.model.Resource emailTemplateType :
+                    emailTemplateTypes.getResources()) {
+                templateList.addAll(getAllTemplatesOfTemplateType(EMAIL_TEMPLATE_PATH, emailTemplateType));
             }
-        } catch (RegistryException | IdentityRuntimeException e) {
+        } catch (ConfigurationManagementException e) {
             String error = String.format("Error when retrieving email templates of %s tenant.", tenantDomain);
             throw new I18nEmailMgtServerException(error, e);
         }
@@ -250,12 +267,13 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
 
         validateTemplateType(templateDisplayName, tenantDomain);
 
-        String templateDirectory = I18nEmailUtil.getNormalizedName(templateDisplayName);
-        String templateTypeRegistryPath = EMAIL_TEMPLATE_PATH + PATH_SEPARATOR + templateDirectory;
+        String normalizedTemplateName = I18nEmailUtil.getNormalizedName(templateDisplayName);
 
         try {
-            return getAllTemplatesOfTemplateTypeFromRegistry(templateTypeRegistryPath, tenantDomain);
-        } catch (RegistryException ex) {
+            org.wso2.carbon.identity.configuration.mgt.core.model.Resource emailTemplateType =
+                    configurationManager.getResource(EMAIL_TEMPLATE_PATH, normalizedTemplateName);
+            return getAllTemplatesOfTemplateType(EMAIL_TEMPLATE_PATH, emailTemplateType);
+        } catch (ConfigurationManagementException ex) {
             String error = "Error when retrieving '%s' template type from %s tenant registry.";
             throw new I18nEmailMgtServerException(String.format(error, templateDisplayName, tenantDomain), ex);
         }
@@ -295,21 +313,26 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         validateDisplayNameOfTemplateType(templateType);
         NotificationTemplate notificationTemplate = null;
 
-        // Get notification template registry path.
-        String path;
-        if (NotificationChannels.SMS_CHANNEL.getChannelType().equals(notificationChannel)) {
-            path = SMS_TEMPLATE_PATH + PATH_SEPARATOR + I18nEmailUtil.getNormalizedName(templateType);
-        } else {
-            path = EMAIL_TEMPLATE_PATH + PATH_SEPARATOR + I18nEmailUtil.getNormalizedName(templateType);
-        }
+        String resourceType = getResourceType(notificationChannel);
+        ResourceFile notificationResourceFile = null;
 
-        // Get registry resource.
         try {
-            Resource registryResource = resourceMgtService.getIdentityResource(path, tenantDomain, locale);
-            if (registryResource != null) {
-                notificationTemplate = getNotificationTemplate(registryResource, notificationChannel);
+            org.wso2.carbon.identity.configuration.mgt.core.model.Resource templateTypeResource =
+                    configurationManager.getResource(resourceType, templateType);
+            List<ResourceFile> templateTypeResourceFiles = templateTypeResource.getFiles();
+            if (templateTypeResourceFiles != null && !templateTypeResourceFiles.isEmpty()) {
+                for (ResourceFile resourceFile : templateTypeResourceFiles) {
+                    if (locale.equals(resourceFile.getName())) {
+                        notificationResourceFile = resourceFile;
+                        break;
+                    }
+                }
             }
-        } catch (IdentityRuntimeException exception) {
+            if (notificationResourceFile != null) {
+                notificationTemplate = getNotificationTemplate(templateTypeResource, notificationResourceFile,
+                        notificationChannel);
+            }
+        } catch (ConfigurationManagementException exception) {
             String error = String
                     .format(IdentityMgtConstants.ErrorMessages.ERROR_CODE_ERROR_RETRIEVING_TEMPLATE_FROM_REGISTRY
                             .getMessage(), templateType, locale, tenantDomain);
@@ -390,6 +413,55 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         return notificationTemplate;
     }
 
+    private NotificationTemplate getNotificationTemplate(
+            org.wso2.carbon.identity.configuration.mgt.core.model.Resource templateTypeResource,
+            ResourceFile notificationResourceFile, String notificationChannel) throws NotificationTemplateManagerException {
+
+        NotificationTemplate notificationTemplate = new NotificationTemplate();
+
+        // Get template meta properties.
+        String displayName = null;
+        String contentType = null;
+        String locale = notificationResourceFile.getName();
+        String templateType = templateTypeResource.getResourceName();
+        List<Attribute> attributes = templateTypeResource.getAttributes();
+
+        if (attributes != null && !attributes.isEmpty()) {
+            // Get attributes from resource
+            for (Attribute attribute : templateTypeResource.getAttributes()) {
+                if (attribute.getKey().equals(I18nMgtConstants.EMAIL_TEMPLATE_TYPE_DISPLAY_NAME)) {
+                    displayName = attribute.getValue();
+                } else if (NotificationChannels.EMAIL_CHANNEL.getChannelType().equals(notificationChannel)
+                        && (attribute.getKey().equals(I18nMgtConstants.TEMPLATE_CONTENT_TYPE))) {
+                    contentType = attribute.getValue();
+                    // Setting UTF-8 for all the email templates as it supports many languages and is widely adopted.
+                    // There is little to no value addition making the charset configurable.
+                    if (contentType != null && !contentType.toLowerCase().contains(I18nEmailUtil.CHARSET_CONSTANT)) {
+                        contentType = contentType + "; " + I18nEmailUtil.CHARSET_UTF_8;
+                    }
+                }
+            }
+        }
+
+        notificationTemplate.setType(templateType);
+        notificationTemplate.setLocale(locale);
+        notificationTemplate.setDisplayName(displayName);
+        notificationTemplate.setContentType(contentType);
+
+        // Process template content.
+        String[] templateContentElements = getTemplateElements(notificationResourceFile, notificationChannel,
+                displayName, locale);
+        if (NotificationChannels.SMS_CHANNEL.getChannelType().equals(notificationChannel)) {
+            notificationTemplate.setBody(templateContentElements[0]);
+        } else {
+            notificationTemplate.setSubject(templateContentElements[0]);
+            notificationTemplate.setBody(templateContentElements[1]);
+            notificationTemplate.setFooter(templateContentElements[2]);
+        }
+        notificationTemplate.setNotificationChannel(notificationChannel);
+        return notificationTemplate;
+    }
+
     /**
      * Process template resource content and retrieve template elements.
      *
@@ -447,6 +519,56 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
                     ERROR_CODE_ERROR_RETRIEVING_TEMPLATE_OBJECT_FROM_REGISTRY.getMessage();
             throw new NotificationTemplateManagerServerException(IdentityMgtConstants.ErrorMessages.
                     ERROR_CODE_ERROR_RETRIEVING_TEMPLATE_OBJECT_FROM_REGISTRY.getCode(), error, exception);
+        }
+    }
+
+    private String[] getTemplateElements(ResourceFile notificationResourceFile,
+            String notificationChannel, String displayName, String locale) throws NotificationTemplateManagerException {
+
+        InputStream inputStream = notificationResourceFile.getInputStream();
+        if (inputStream != null) {
+            String templateContent;
+            try {
+                templateContent = IOUtils.toString(inputStream, String.valueOf(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                String error = IdentityMgtConstants.ErrorMessages.
+                        ERROR_CODE_ERROR_RETRIEVING_TEMPLATE_OBJECT_FROM_REGISTRY.getMessage();
+                throw new NotificationTemplateManagerServerException(IdentityMgtConstants.ErrorMessages.
+                        ERROR_CODE_ERROR_RETRIEVING_TEMPLATE_OBJECT_FROM_REGISTRY.getCode(), error, e);
+            }
+
+            String[] templateContentElements;
+            try {
+                templateContentElements = new Gson().fromJson(templateContent, String[].class);
+            } catch (JsonSyntaxException e) {
+                String error = String.format(IdentityMgtConstants.ErrorMessages.
+                        ERROR_CODE_DESERIALIZING_TEMPLATE_FROM_TENANT_REGISTRY.getMessage(), displayName, locale);
+                throw new NotificationTemplateManagerServerException(IdentityMgtConstants.ErrorMessages.
+                        ERROR_CODE_DESERIALIZING_TEMPLATE_FROM_TENANT_REGISTRY.getCode(), error, e);
+            }
+
+            // Validate template content.
+            if (NotificationChannels.SMS_CHANNEL.getChannelType().equals(notificationChannel)) {
+                if (templateContentElements == null || templateContentElements.length != 1) {
+                    String errorMsg = String.format(IdentityMgtConstants.ErrorMessages.
+                            ERROR_CODE_INVALID_SMS_TEMPLATE_CONTENT.getMessage(), displayName, locale);
+                    throw new NotificationTemplateManagerServerException(IdentityMgtConstants.ErrorMessages.
+                            ERROR_CODE_INVALID_SMS_TEMPLATE_CONTENT.getCode(), errorMsg);
+                }
+            } else {
+                if (templateContentElements == null || templateContentElements.length != 3) {
+                    String errorMsg = String.format(IdentityMgtConstants.ErrorMessages.
+                            ERROR_CODE_INVALID_EMAIL_TEMPLATE_CONTENT.getMessage(), displayName, locale);
+                    throw new NotificationTemplateManagerServerException(IdentityMgtConstants.ErrorMessages.
+                            ERROR_CODE_INVALID_EMAIL_TEMPLATE_CONTENT.getCode(), errorMsg);
+                }
+            }
+            return templateContentElements;
+        } else {
+            String error = String.format(IdentityMgtConstants.ErrorMessages.
+                    ERROR_CODE_NO_CONTENT_IN_TEMPLATE.getMessage(), displayName, locale);
+            throw new NotificationTemplateManagerClientException(IdentityMgtConstants.ErrorMessages.
+                    ERROR_CODE_NO_CONTENT_IN_TEMPLATE.getCode(), error);
         }
     }
 
@@ -520,6 +642,27 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         return templateResource;
     }
 
+    private ResourceFile createTemplateResource(NotificationTemplate notificationTemplate) {
+
+        String locale = notificationTemplate.getLocale();
+        String body = notificationTemplate.getBody();
+
+        ResourceFile templateResourceFile = new ResourceFile();
+        templateResourceFile.setName(locale);
+
+        String[] templateContent;
+        // Handle contents according to different channel types.
+        if (NotificationChannels.EMAIL_CHANNEL.getChannelType().equals(notificationTemplate.getNotificationChannel())) {
+            templateContent = new String[]{notificationTemplate.getSubject(), body, notificationTemplate.getFooter()};
+        } else {
+            templateContent = new String[]{body};
+        }
+        String content = new Gson().toJson(templateContent);
+        byte[] contentByteArray = content.getBytes(StandardCharsets.UTF_8);
+        templateResourceFile.setInputStream(new ByteArrayInputStream(contentByteArray));
+        return templateResourceFile;
+    }
+
     @Override
     public void addNotificationTemplate(NotificationTemplate notificationTemplate, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -527,15 +670,15 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         validateNotificationTemplate(notificationTemplate);
         String notificationChannel = notificationTemplate.getNotificationChannel();
 
-        Resource templateResource = createTemplateRegistryResource(notificationTemplate);
         String displayName = notificationTemplate.getDisplayName();
-        String type = I18nEmailUtil.getNormalizedName(displayName);
+        String normalizedTemplateName = I18nEmailUtil.getNormalizedName(displayName);
         String locale = notificationTemplate.getLocale();
+        String resourceType = getResourceType(notificationChannel);
 
-        String path = buildTemplateRootDirectoryPath(type, notificationChannel);
+        org.wso2.carbon.identity.configuration.mgt.core.model.Resource notificationTemplateType;
         try {
-            // Check whether a template type root directory exists.
-            if (!resourceMgtService.isResourceExists(path, tenantDomain)) {
+            // check if template type exists.
+            if (!isTemplateTypeExists(resourceType, normalizedTemplateName)) {
                 // Add new template type with relevant properties.
                 addNotificationTemplateType(displayName, notificationChannel, tenantDomain);
                 if (log.isDebugEnabled()) {
@@ -543,15 +686,53 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
                     log.debug(String.format(msg, displayName, tenantDomain));
                 }
             }
-            resourceMgtService.putIdentityResource(templateResource, path, tenantDomain, locale);
-        } catch (IdentityRuntimeException e) {
-            String code = I18nEmailUtil.prependOperationScenarioToErrorCode(
-                    I18nMgtConstants.ErrorMessages.ERROR_CODE_ERROR_ERROR_ADDING_TEMPLATE.getCode(),
-                    I18nMgtConstants.ErrorScenarios.EMAIL_TEMPLATE_MANAGER);
-            String message =
-                    String.format(I18nMgtConstants.ErrorMessages.ERROR_CODE_ERROR_ERROR_ADDING_TEMPLATE.getMessage(),
-                            displayName, locale, tenantDomain);
-            throw new NotificationTemplateManagerServerException(code, message);
+            notificationTemplateType = configurationManager.getResource(resourceType, normalizedTemplateName);
+
+        } catch (ConfigurationManagementException | I18nEmailMgtException exception) {
+            String error = String
+                    .format(IdentityMgtConstants.ErrorMessages.ERROR_CODE_ERROR_RETRIEVING_TEMPLATE_FROM_REGISTRY
+                            .getMessage(), displayName, locale, tenantDomain);
+            throw new NotificationTemplateManagerServerException(
+                    IdentityMgtConstants.ErrorMessages.ERROR_CODE_ERROR_RETRIEVING_TEMPLATE_FROM_REGISTRY.getCode(),
+                    error, exception);
+        }
+
+        if (notificationTemplateType != null) {
+            List<ResourceFile> templateTypeResourceFiles = notificationTemplateType.getFiles();
+            if (templateTypeResourceFiles == null) {
+                templateTypeResourceFiles = new ArrayList<>();
+            }
+
+            // Create notification template file.
+            ResourceFile notificationTemplateFile = createTemplateResource(notificationTemplate);
+
+            // Add file if it is not already in the list.
+            if(templateTypeResourceFiles.isEmpty() || templateTypeResourceFiles.stream().noneMatch(
+                    file -> file.getName().equals(locale))) {
+                templateTypeResourceFiles.add(notificationTemplateFile);
+            } else {
+                // Replace the existing file with the new file.
+                templateTypeResourceFiles.replaceAll(file -> {
+                    if (file.getName().equals(locale)) {
+                        return notificationTemplateFile;
+                    }
+                    return file;
+                });
+            }
+            notificationTemplateType.setFiles(templateTypeResourceFiles);
+
+            // update the template type
+            try {
+                configurationManager.replaceResource(resourceType, notificationTemplateType);
+            } catch (ConfigurationManagementException e) {
+                String code = I18nEmailUtil.prependOperationScenarioToErrorCode(
+                        I18nMgtConstants.ErrorMessages.ERROR_CODE_ERROR_ERROR_ADDING_TEMPLATE.getCode(),
+                        I18nMgtConstants.ErrorScenarios.EMAIL_TEMPLATE_MANAGER);
+                String message =
+                        String.format(I18nMgtConstants.ErrorMessages.ERROR_CODE_ERROR_ERROR_ADDING_TEMPLATE.getMessage(),
+                                displayName, locale, tenantDomain);
+                throw new NotificationTemplateManagerServerException(code, message);
+            }
         }
     }
 
@@ -591,14 +772,35 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         }
 
         String templateType = I18nEmailUtil.getNormalizedName(templateTypeName);
-        String path = EMAIL_TEMPLATE_PATH + PATH_SEPARATOR + templateType;
 
+        org.wso2.carbon.identity.configuration.mgt.core.model.Resource notificationTemplateType = null;
         try {
-            resourceMgtService.deleteIdentityResource(path, tenantDomain, localeCode);
-        } catch (IdentityRuntimeException ex) {
-            String msg = String.format("Error deleting %s:%s template from %s tenant registry.", templateTypeName,
-                    localeCode, tenantDomain);
+            notificationTemplateType = configurationManager.getResource(EMAIL_TEMPLATE_PATH, templateType);
+        } catch (ConfigurationManagementException ex) {
+            String msg = String.format("Error when retrieving email templates of %s tenant.", tenantDomain);
             handleServerException(msg, ex);
+        }
+        if (notificationTemplateType == null) {
+            throw new I18nEmailMgtClientException("Cannot Delete template. Email template type does not exist.");
+        }
+        List<ResourceFile> templateTypeResourceFiles = notificationTemplateType.getFiles();
+        if (templateTypeResourceFiles == null || templateTypeResourceFiles.isEmpty()) {
+            throw new I18nEmailMgtClientException("Cannot Delete template. Email template does not exist.");
+        }
+        // Get file ID of the notification template file.
+        for (ResourceFile resourceFile : templateTypeResourceFiles) {
+            if (resourceFile.getName().equals(localeCode)) {
+                String fileId = resourceFile.getId();
+                // Delete the notification template file.
+                try {
+                    configurationManager.deleteFileById(EMAIL_TEMPLATE_PATH, templateType, fileId);
+                } catch (ConfigurationManagementException e) {
+                    String msg = String.format("Error deleting %s:%s template from %s tenant registry.",
+                            templateTypeName, localeCode, tenantDomain);
+                    handleServerException(msg, e);
+                }
+                break;
+            }
         }
     }
 
@@ -642,14 +844,12 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         try {
             for (NotificationTemplate template : notificationTemplates) {
                 String displayName = template.getDisplayName();
-                String type = I18nEmailUtil.getNormalizedName(displayName);
-                String locale = template.getLocale();
-                String path = buildTemplateRootDirectoryPath(type, notificationChannel);
+                String normalizedTemplateName = I18nEmailUtil.getNormalizedName(displayName);
+                String resourceType = getResourceType(notificationChannel);
 
             /*Check for existence of each category, since some template may have migrated from earlier version
             This will also add new template types provided from file, but won't update any existing template*/
-                if (!resourceMgtService.isResourceExists(addLocaleToTemplateTypeResourcePath(path, locale),
-                        tenantDomain)) {
+                if (!isTemplateTypeExists(resourceType, normalizedTemplateName)) {
                     try {
                         addNotificationTemplate(template, tenantDomain);
                         if (log.isDebugEnabled()) {
@@ -667,7 +867,7 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
                 log.debug(String.format("Added %d default %s templates to the tenant registry : %s",
                         numberOfAddedTemplates, notificationChannel, tenantDomain));
             }
-        } catch (IdentityRuntimeException ex) {
+        } catch (IdentityRuntimeException | I18nEmailMgtException ex) {
             String error = "Error when tried to check for default email templates in tenant registry : %s";
             log.error(String.format(error, tenantDomain), ex);
         }
@@ -688,22 +888,61 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         return I18nMgtDataHolder.getInstance().getDefaultEmailTemplates();
     }
 
+    private boolean isTemplateTypeExists(String resourceType, String normalizedTemplateName)
+            throws I18nEmailMgtServerException {
+
+        org.wso2.carbon.identity.configuration.mgt.core.model.Resource notificationTemplateType;
+        try {
+            notificationTemplateType = configurationManager.getResource(resourceType, normalizedTemplateName);
+        } catch (ConfigurationManagementException e) {
+            // If resource type or resource does not exist, return false.
+            if (ConfigurationConstants.ErrorMessages.ERROR_CODE_RESOURCE_TYPE_DOES_NOT_EXISTS.getCode().equals(e.getErrorCode()) ||
+                    ConfigurationConstants.ErrorMessages.ERROR_CODE_RESOURCE_DOES_NOT_EXISTS.getCode().equals(e.getErrorCode())) {
+                return false;
+            }
+            throw new I18nEmailMgtServerException("Error when checking for template type existence.", e);
+        }
+        return notificationTemplateType != null;
+    }
+
+    private boolean isTemplateExists(String resourceType, String normalizedTemplateName, String locale)
+            throws I18nEmailMgtServerException {
+
+        org.wso2.carbon.identity.configuration.mgt.core.model.Resource notificationTemplateType;
+        try {
+            notificationTemplateType = configurationManager
+                    .getResource(resourceType, normalizedTemplateName);
+        } catch (ConfigurationManagementException e) {
+            // If resource type or resource does not exist, return false.
+            if (ConfigurationConstants.ErrorMessages.ERROR_CODE_RESOURCE_TYPE_DOES_NOT_EXISTS.getCode().equals(e.getErrorCode()) ||
+                    ConfigurationConstants.ErrorMessages.ERROR_CODE_RESOURCE_DOES_NOT_EXISTS.getCode().equals(e.getErrorCode())) {
+                return false;
+            }
+            throw new I18nEmailMgtServerException("Error when checking for template existence.", e);
+        }
+        if (notificationTemplateType == null) {
+            return false;
+        }
+        List<ResourceFile> templateTypeResourceFiles = notificationTemplateType.getFiles();
+        if (templateTypeResourceFiles == null || templateTypeResourceFiles.isEmpty()) {
+            return false;
+        }
+        // check whether the template file exists in the list
+        for (ResourceFile resourceFile : templateTypeResourceFiles) {
+            if (resourceFile.getName().equals(locale)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public boolean isEmailTemplateExists(String templateTypeDisplayName, String locale, String tenantDomain)
             throws I18nEmailMgtException {
 
         // get template directory name from display name.
         String normalizedTemplateName = I18nEmailUtil.getNormalizedName(templateTypeDisplayName);
-        String path = EMAIL_TEMPLATE_PATH + PATH_SEPARATOR + normalizedTemplateName +
-                        PATH_SEPARATOR + locale.toLowerCase();
-
-        try {
-            Resource template = resourceMgtService.getIdentityResource(path, tenantDomain);
-            return template != null;
-        } catch (IdentityRuntimeException e) {
-            String error = String.format("Error when retrieving email templates of %s tenant.", tenantDomain);
-            throw new I18nEmailMgtServerException(error, e);
-        }
+        return isTemplateExists(EMAIL_TEMPLATE_PATH, normalizedTemplateName, locale);
     }
 
     @Override
@@ -712,15 +951,7 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
 
         // get template directory name from display name.
         String normalizedTemplateName = I18nEmailUtil.getNormalizedName(templateTypeDisplayName);
-        String path = EMAIL_TEMPLATE_PATH + PATH_SEPARATOR + normalizedTemplateName;
-
-        try {
-            Resource templateType = resourceMgtService.getIdentityResource(path, tenantDomain);
-            return templateType != null;
-        } catch (IdentityRuntimeException e) {
-            String error = String.format("Error when retrieving email templates of %s tenant.", tenantDomain);
-            throw new I18nEmailMgtServerException(error, e);
-        }
+        return isTemplateTypeExists(EMAIL_TEMPLATE_PATH, normalizedTemplateName);
     }
 
     /**
@@ -857,6 +1088,28 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         return templateList;
     }
 
+    private List<EmailTemplate> getAllTemplatesOfTemplateType(String resourceType,
+            org.wso2.carbon.identity.configuration.mgt.core.model.Resource templateType)
+            throws I18nEmailMgtException {
+
+        List<EmailTemplate> templateList = new ArrayList<>();
+        List<ResourceFile> templateTypeResourceFiles = templateType.getFiles();
+        try {
+            if (templateTypeResourceFiles != null && !templateTypeResourceFiles.isEmpty()) {
+                for (ResourceFile templateFile : templateTypeResourceFiles) {
+                    InputStream inputStream = configurationManager.getFileById(resourceType,
+                            templateType.getResourceName(), templateFile.getId());
+                    EmailTemplate templateDTO = I18nEmailUtil.getEmailTemplate(templateType, templateFile, inputStream);
+                    templateList.add(templateDTO);
+                }
+            }
+        } catch (ConfigurationManagementException e) {
+            String error = String.format("Error when retrieving %s templates.", resourceType);
+            throw new I18nEmailMgtServerException(error, e);
+        }
+        return templateList;
+    }
+
     private void handleServerException(String errorMsg, Throwable ex) throws I18nEmailMgtServerException {
 
         log.error(errorMsg);
@@ -955,6 +1208,14 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
             return SMS_TEMPLATE_PATH + PATH_SEPARATOR + type;
         }
         return EMAIL_TEMPLATE_PATH + PATH_SEPARATOR + type;
+    }
+
+    private String getResourceType(String notificationChannel) {
+
+        if (NotificationChannels.SMS_CHANNEL.getChannelType().equals(notificationChannel)) {
+            return SMS_TEMPLATE_PATH;
+        }
+        return EMAIL_TEMPLATE_PATH;
     }
 
     /**
