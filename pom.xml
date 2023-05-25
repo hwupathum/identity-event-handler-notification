@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) 2016, WSO2 LLC. (http://www.wso2.org) All Rights Reserved.
+  ~ Copyright (c) 2016, WSO2 LLC. (http://www.wso2.com).
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -112,6 +112,12 @@
                 <groupId>org.wso2.carbon</groupId>
                 <artifactId>org.wso2.carbon.ui</artifactId>
                 <version>${carbon.kernel.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.wso2.carbon.utils</groupId>
+                <artifactId>org.wso2.carbon.database.utils</artifactId>
+                <version>${org.wso2.carbon.database.utils.version}</version>
             </dependency>
 
             <!--Carbon Commons Dependencies-->
@@ -420,6 +426,10 @@
         <!--Carbon Identity Framework Version-->
         <carbon.identity.framework.version>5.25.167</carbon.identity.framework.version>
         <carbon.identity.framework.imp.pkg.version.range>[5.14.67, 7.0.0)</carbon.identity.framework.imp.pkg.version.range>
+
+        <!--Database Utils Version-->
+        <org.wso2.carbon.database.utils.version>2.0.7</org.wso2.carbon.database.utils.version>
+        <org.wso2.carbon.database.utils.version.range>[2.0.0,2.2.0)</org.wso2.carbon.database.utils.version.range>
 
         <!-- Organization management Version -->
         <identity.organization.management.core.version>1.0.19</identity.organization.management.core.version>
