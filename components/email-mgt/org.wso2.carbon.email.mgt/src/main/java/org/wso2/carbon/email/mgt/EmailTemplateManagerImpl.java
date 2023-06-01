@@ -22,7 +22,7 @@ import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.email.mgt.constants.I18nMgtConstants;
 import org.wso2.carbon.email.mgt.dao.NotificationTemplateDAO;
 import org.wso2.carbon.email.mgt.dao.impl.NotificationTemplateDAOImpl;
-import org.wso2.carbon.email.mgt.dao.impl.NotificationTemplateFallbackDAOImpl;
+import org.wso2.carbon.email.mgt.dao.impl.NotificationTemplateMigrationDAOImpl;
 import org.wso2.carbon.email.mgt.dao.impl.NotificationTemplateRegistryDAOImpl;
 import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtClientException;
 import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtException;
@@ -84,8 +84,8 @@ public class EmailTemplateManagerImpl implements EmailTemplateManager, Notificat
         switch (emailTemplatesDatabase) {
             case "database":
                 return new NotificationTemplateDAOImpl();
-            case "fallback":
-                return new NotificationTemplateFallbackDAOImpl();
+            case "on_migration":
+                return new NotificationTemplateMigrationDAOImpl();
             default:
                 return new NotificationTemplateRegistryDAOImpl();
         }
