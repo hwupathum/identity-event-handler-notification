@@ -42,10 +42,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * This class is used to access notification templates from the database.
+ */
 public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
 
     private static final Log log = LogFactory.getLog(NotificationTemplateDAOImpl.class);
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public void addNotificationTemplateType(String displayName, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -71,6 +77,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public void deleteNotificationTemplateTypeByName(String displayName, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -100,6 +109,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public List<String> getNotificationTemplateTypes(String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -129,6 +141,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         return templateTypes;
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public boolean isNotificationTemplateTypeExists(String displayName, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -142,6 +157,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public void addOrUpdateNotificationTemplate(NotificationTemplate notificationTemplate, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -189,7 +207,14 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         }
     }
 
-    public void addNotificationTemplate(NotificationTemplate notificationTemplate, String tenantDomain)
+    /**
+     * Add a new notification template.
+     *
+     * @param notificationTemplate  Notification template.
+     * @param tenantDomain          Tenant domain.
+     * @throws NotificationTemplateManagerException If an error occurs while adding the notification template.
+     */
+    protected void addNotificationTemplate(NotificationTemplate notificationTemplate, String tenantDomain)
             throws NotificationTemplateManagerException {
 
         String tenantUUID = getTenantUUID(tenantDomain);
@@ -225,6 +250,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public int addDefaultNotificationTemplates(List<NotificationTemplate> notificationTemplates,
                                                 String notificationChannel,String tenantDomain)
@@ -239,7 +267,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                 addNotificationTemplate(notificationTemplate, tenantDomain);
                 if (log.isDebugEnabled()) {
                     String msg = "Default template added to %s tenant registry : %n%s";
-                    log.debug(String.format(msg, tenantDomain, notificationTemplate.toString()));
+                    log.debug(String.format(msg, tenantDomain, notificationTemplate));
                 }
                 numberOfAddedTemplates++;
             } catch (NotificationTemplateManagerInternalException e) {
@@ -250,6 +278,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         return numberOfAddedTemplates;
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public void deleteNotificationTemplate(String displayName, String locale, String notificationChannel,
                                            String tenantDomain)
@@ -277,6 +308,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public NotificationTemplate getNotificationTemplate(String displayName, String locale, String notificationChannel,
                                                         String tenantDomain)
@@ -320,7 +354,15 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         return notificationTemplate;
     }
 
-    public List<NotificationTemplate> getAllNotificationTemplates(String notificationChannel, String tenantDomain)
+    /**
+     * Get all the notification templates for a given notification channel.
+     *
+     * @param notificationChannel   Notification channel.
+     * @param tenantDomain          Tenant domain.
+     * @return List of notification templates.
+     * @throws NotificationTemplateManagerException Error while retrieving notification templates.
+     */
+    protected List<NotificationTemplate> getAllNotificationTemplates(String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException {
 
         String tenantUUID = getTenantUUID(tenantDomain);
@@ -353,20 +395,29 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                     }
                 }
             } catch (SQLException e) {
-                throw new NotificationTemplateManagerException("Error while retrieving notification templates.", e);
+                throw new NotificationTemplateManagerException("Error while retrieving all notification templates.", e);
             }
         } catch (SQLException e) {
-            throw new NotificationTemplateManagerException("Error while retrieving notification templates.", e);
+            throw new NotificationTemplateManagerException("Error while retrieving all notification templates.", e);
         }
         return notificationTemplates;
     }
 
-    public List<NotificationTemplate> getNotificationTemplates(String displayName, String notificationChannel,
+    /**
+     * Get all the notification templates for a given display name and notification channel.
+     *
+     * @param displayName           Display name of the notification template.
+     * @param notificationChannel   Notification channel.
+     * @param tenantDomain          Tenant domain.
+     * @return List of notification templates.
+     * @throws NotificationTemplateManagerException Error while retrieving notification templates.
+     */
+    protected List<NotificationTemplate> getNotificationTemplates(String displayName, String notificationChannel,
                                                                String tenantDomain)
             throws NotificationTemplateManagerException {
 
         String tenantUUID = getTenantUUID(tenantDomain);
-        List<NotificationTemplate> notificationTemplates = new ArrayList<>();
+        List<NotificationTemplate> notificationTemplates;
 
         try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(false)) {
             try {
@@ -387,6 +438,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         return notificationTemplates;
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public boolean isNotificationTemplateExists(String displayName, String locale, String notificationChannel,
                                                 String tenantDomain)
@@ -412,18 +466,24 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
 
     // Email template related methods
 
+    /**
+     * @inheritDoc
+     */
+    @Override
     public List<EmailTemplate> getAllEmailTemplates(String tenantDomain) throws NotificationTemplateManagerException {
 
         List<EmailTemplate> templateList = new ArrayList<>();
         String channelType = NotificationChannels.EMAIL_CHANNEL.getChannelType();
 
-        getAllNotificationTemplates(channelType, tenantDomain).forEach(notificationTemplate -> {
-            templateList.add(I18nEmailUtil.buildEmailTemplate(notificationTemplate));
-        });
+        getAllNotificationTemplates(channelType, tenantDomain).forEach(notificationTemplate ->
+            templateList.add(I18nEmailUtil.buildEmailTemplate(notificationTemplate)));
 
         return templateList;
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public List<EmailTemplate> getEmailTemplates(String templateType, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -431,15 +491,24 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         List<EmailTemplate> templateList = new ArrayList<>();
         String channelType = NotificationChannels.EMAIL_CHANNEL.getChannelType();
 
-        getNotificationTemplates(templateType, channelType, tenantDomain).forEach(notificationTemplate -> {
-            templateList.add(I18nEmailUtil.buildEmailTemplate(notificationTemplate));
-        });
+        getNotificationTemplates(templateType, channelType, tenantDomain).forEach(notificationTemplate ->
+                templateList.add(I18nEmailUtil.buildEmailTemplate(notificationTemplate)));
 
         return templateList;
     }
 
     // Private methods
 
+    /**
+     * Get the template type ID from the database for the given display name and notification channel.
+     *
+     * @param connection            Database connection.
+     * @param displayName           Display name of the notification template.
+     * @param notificationChannel   Notification channel.
+     * @param tenantUUID            Tenant UUID.
+     * @return Template type ID.
+     * @throws SQLException Error while retrieving template type ID.
+     */
     private String processGetTemplateTypeID(Connection connection, String displayName, String notificationChannel,
                                                 String tenantUUID) throws SQLException {
 
@@ -463,6 +532,15 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         return templateTypeID;
     }
 
+    /**
+     * Check whether a notification template exists for the given template type ID and locale.
+     *
+     * @param connection        Database connection.
+     * @param templateTypeID    Template type ID.
+     * @param locale            Locale.
+     * @return List of notification templates.
+     * @throws SQLException Error while retrieving notification templates.
+     */
     private boolean processIsTemplateExists(Connection connection, String templateTypeID, String locale)
             throws SQLException {
 
@@ -481,6 +559,15 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         return isExist;
     }
 
+    /**
+     * Delete notification templates of the given display name and notification channel.
+     *
+     * @param connection            Database connection.
+     * @param displayName           Display name of the notification template.
+     * @param notificationChannel   Notification channel.
+     * @param tenantUUID            Tenant UUID.
+     * @throws SQLException Error while retrieving notification templates.
+     */
     private void processDeleteTemplatesOfType(Connection connection, String displayName, String notificationChannel,
                                               String tenantUUID) throws SQLException {
 
@@ -495,6 +582,16 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         }
     }
 
+    /**
+     * Add notification template types of the given display name and notification channel.
+     *
+     * @param connection            Database connection.
+     * @param displayName           Display name of the notification template.
+     * @param notificationChannel   Notification channel.
+     * @param tenantUUID            Tenant UUID.
+     * @return Template type ID.
+     * @throws SQLException Error while retrieving notification templates.
+     */
     private String processAddTemplateType(Connection connection, String displayName, String notificationChannel,
                                         String tenantUUID) throws SQLException {
 
@@ -514,6 +611,14 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         return id;
     }
 
+    /**
+     * Add notification templates of the given template type ID and notification template.
+     *
+     * @param connection            Database connection.
+     * @param templateTypeID        Template type ID.
+     * @param notificationTemplate  Notification template.
+     * @throws SQLException Error while retrieving notification templates.
+     */
     private void processAddTemplate(Connection connection, String templateTypeID,
                                     NotificationTemplate notificationTemplate)
             throws SQLException {
@@ -536,6 +641,14 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         }
     }
 
+    /**
+     * Update notification templates of the given template type ID and notification template.
+     *
+     * @param connection            Database connection.
+     * @param templateTypeID        Template type ID.
+     * @param notificationTemplate  Notification template.
+     * @throws SQLException Error while retrieving notification templates.
+     */
     private void processUpdateTemplate(Connection connection, String templateTypeID,
                                        NotificationTemplate notificationTemplate)
             throws SQLException {
@@ -558,6 +671,16 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         }
     }
 
+    /**
+     * Get all the notification templates for a given display name and notification channel.
+     *
+     * @param connection            Database connection.
+     * @param displayName           Display name of the notification template.
+     * @param notificationChannel   Notification channel.
+     * @param tenantUUID            Tenant UUID.
+     * @return List of notification templates.
+     * @throws SQLException Error while retrieving notification templates.
+     */
     private List<NotificationTemplate> processGetTemplates(Connection connection, String displayName,
                                                            String notificationChannel, String tenantUUID)
             throws SQLException {
@@ -593,9 +716,17 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         return notificationTemplates;
     }
 
+    /**
+     * Get tenant UUID for the given tenant domain.
+     *
+     * @param tenantDomain Tenant domain.
+     * @return Tenant UUID.
+     * @throws NotificationTemplateManagerException Error while retrieving tenant UUID.
+     */
     private String getTenantUUID(String tenantDomain) throws NotificationTemplateManagerException {
         if (tenantDomain != null) {
             int tenantID = IdentityTenantUtil.getTenantId(tenantDomain);
+            // Super tenant does not have a tenant UUID. Therefore, set a hard coded value.
             if (tenantID == MultitenantConstants.SUPER_TENANT_ID) {
                 // Set a hard length of 32 characters for super tenant ID.
                 // This is to avoid the database column length constraint violation.

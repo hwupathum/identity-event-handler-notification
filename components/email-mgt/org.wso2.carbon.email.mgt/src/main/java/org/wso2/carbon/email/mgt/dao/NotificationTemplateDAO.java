@@ -31,20 +31,22 @@ public interface NotificationTemplateDAO {
 
     /**
      * Add a notification template type to given tenant.
+     *
      * @param displayName           Display name of the template type.
      * @param notificationChannel   Notification channel.
      * @param tenantDomain          Tenant domain.
-     * @throws NotificationTemplateManagerException
+     * @throws NotificationTemplateManagerException If an error occurred while adding the template type.
      */
     void addNotificationTemplateType(String displayName, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException;
 
     /**
      * Delete a notification template from given tenant.
+     *
      * @param displayName           Display name of the template type.
      * @param notificationChannel   Notification channel.
      * @param tenantDomain          Tenant domain.
-     * @throws NotificationTemplateManagerException
+     * @throws NotificationTemplateManagerException If an error occurred while deleting the template type.
      */
     void deleteNotificationTemplateTypeByName(String displayName, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException;
@@ -55,38 +57,42 @@ public interface NotificationTemplateDAO {
      * @param notificationChannel   Notification channel.
      * @param tenantDomain          Tenant domain.
      * @return                      List of available template types.
-     * @throws NotificationTemplateManagerException
+     * @throws NotificationTemplateManagerException If an error occurred while retrieving the template types.
      */
     List<String> getNotificationTemplateTypes(String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException;
 
     /**
      * Check whether the given notification template type exists for given tenant.
+     *
      * @param displayName           Display name of the template type.
      * @param notificationChannel   Notification channel.
      * @param tenantDomain          Tenant domain.
-     * @return                      True if the template type exists, false otherwise.
-     * @throws NotificationTemplateManagerException
+     * @return True if the template type exists, false otherwise.
+     * @throws NotificationTemplateManagerException If an error occurred while checking the existence of the template
+     * type.
      */
     boolean isNotificationTemplateTypeExists(String displayName, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException;
 
     /**
      * Update a notification template is exists or add a new template if not exists for given tenant.
+     *
      * @param notificationTemplate  Notification template.
      * @param tenantDomain          Tenant domain.
-     * @throws NotificationTemplateManagerException
+     * @throws NotificationTemplateManagerException If an error occurred while adding or updating the template.
      */
     void addOrUpdateNotificationTemplate(NotificationTemplate notificationTemplate, String tenantDomain)
             throws NotificationTemplateManagerException;
 
     /**
      * Add a default notification templates to given tenant.
+     *
      * @param notificationTemplates List of notification templates.
      * @param notificationChannel   Notification channel.
      * @param tenantDomain          Tenant domain.
-     * @return                      Number of templates added.
-     * @throws NotificationTemplateManagerException
+     * @return Number of templates added.
+     * @throws NotificationTemplateManagerException If an error occurred while adding the templates.
      */
     int addDefaultNotificationTemplates(List<NotificationTemplate> notificationTemplates, String notificationChannel,
                                          String tenantDomain)
@@ -94,23 +100,25 @@ public interface NotificationTemplateDAO {
 
     /**
      * Delete a notification template from given tenant.
+     *
      * @param displayName           Display Name.
      * @param locale                Locale of the template.
      * @param notificationChannel   Notification channel.
      * @param tenantDomain          Tenant domain.
-     * @throws NotificationTemplateManagerException
+     * @throws NotificationTemplateManagerException If an error occurred while deleting the template.
      */
     void deleteNotificationTemplate(String displayName, String locale, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException;
 
     /**
      * Get a notification template from given tenant.
+     *
      * @param displayName           Display Name.
      * @param locale                Locale of the template.
      * @param notificationChannel   Notification channel.
      * @param tenantDomain          Tenant domain.
-     * @return                      Notification template.
-     * @throws NotificationTemplateManagerException
+     * @return Notification template.
+     * @throws NotificationTemplateManagerException If an error occurred while retrieving the template.
      */
     NotificationTemplate getNotificationTemplate(String displayName, String locale, String notificationChannel,
                                                  String tenantDomain)
@@ -118,12 +126,13 @@ public interface NotificationTemplateDAO {
 
     /**
      * Check whether the given notification template exists for given tenant.
+     *
      * @param displayName           Display Name.
      * @param locale                Locale of the template.
      * @param notificationChannel   Notification channel.
      * @param tenantDomain          Tenant domain.
-     * @return                      True if the template exists, false otherwise.
-     * @throws NotificationTemplateManagerException
+     * @return True if the template exists, false otherwise.
+     * @throws NotificationTemplateManagerException If an error occurred while checking the existence of the template.
      */
     boolean isNotificationTemplateExists(String displayName, String locale, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException;
@@ -132,18 +141,20 @@ public interface NotificationTemplateDAO {
 
     /**
      * Get all email templates for given tenant.
+     *
      * @param tenantDomain  Tenant domain.
-     * @return              List of available email templates.
-     * @throws NotificationTemplateManagerException
+     * @return List of available email templates.
+     * @throws NotificationTemplateManagerException If an error occurred while retrieving the templates.
      */
     List<EmailTemplate> getAllEmailTemplates(String tenantDomain) throws NotificationTemplateManagerException;
 
     /**
      * Get email templates for given template type and tenant.
+     *
      * @param templateType  Template type.
      * @param tenantDomain  Tenant domain.
-     * @return              List of available email templates.
-     * @throws NotificationTemplateManagerException
+     * @return List of available email templates.
+     * @throws NotificationTemplateManagerException If an error occurred while retrieving the templates.
      */
     List<EmailTemplate> getEmailTemplates(String templateType, String tenantDomain)
             throws NotificationTemplateManagerException;

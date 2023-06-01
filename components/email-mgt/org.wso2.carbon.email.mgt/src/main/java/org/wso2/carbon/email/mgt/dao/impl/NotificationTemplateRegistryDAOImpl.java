@@ -46,7 +46,6 @@ import org.wso2.carbon.registry.core.Resource;
 import org.wso2.carbon.registry.core.ResourceImpl;
 import org.wso2.carbon.registry.core.exceptions.RegistryException;
 
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,20 +56,26 @@ import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.ErrorCodes.EM
 import static org.wso2.carbon.email.mgt.constants.I18nMgtConstants.SMS_TEMPLATE_PATH;
 import static org.wso2.carbon.registry.core.RegistryConstants.PATH_SEPARATOR;
 
+/**
+ * This class is used to access notification templates from the registry.
+ */
 public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplateDAO {
 
     private static final Log log = LogFactory.getLog(NotificationTemplateRegistryDAOImpl.class);
 
-    private I18nMgtDataHolder dataHolder = I18nMgtDataHolder.getInstance();
-    private RegistryResourceMgtService resourceMgtService = dataHolder.getRegistryResourceMgtService();
+    private final I18nMgtDataHolder dataHolder = I18nMgtDataHolder.getInstance();
+    private final RegistryResourceMgtService resourceMgtService = dataHolder.getRegistryResourceMgtService();
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public void addNotificationTemplateType(String displayName, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException {
 
         String normalizedDisplayName = I18nEmailUtil.getNormalizedName(displayName);
 
-        // Persist the template type to registry ie. create a directory.
+        // Persist the template type to registry i.e. create a directory.
         String path = buildTemplateRootDirectoryPath(normalizedDisplayName, notificationChannel);
         try {
             // Check whether a template exists with the same name.
@@ -84,6 +89,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public void deleteNotificationTemplateTypeByName(String displayName, String notificationChannel,
                                                      String tenantDomain) throws NotificationTemplateManagerException {
@@ -97,6 +105,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public List<String> getNotificationTemplateTypes(String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -120,6 +131,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public boolean isNotificationTemplateTypeExists(String displayName, String notificationChannel, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -136,7 +150,14 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         }
     }
 
-    public void addNotificationTemplate(NotificationTemplate notificationTemplate, String tenantDomain)
+    /**
+     * Add a new notification template.
+     *
+     * @param notificationTemplate  Notification template.
+     * @param tenantDomain          Tenant domain.
+     * @throws NotificationTemplateManagerException If an error occurs while adding the notification template.
+     */
+    protected void addNotificationTemplate(NotificationTemplate notificationTemplate, String tenantDomain)
             throws NotificationTemplateManagerException {
 
         EmailTemplateManagerImpl.validateNotificationTemplate(notificationTemplate);
@@ -170,6 +191,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public void addOrUpdateNotificationTemplate(NotificationTemplate notificationTemplate, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -200,6 +224,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
 
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public int addDefaultNotificationTemplates(List<NotificationTemplate> notificationTemplates,
                                                String notificationChannel, String tenantDomain)
@@ -222,7 +249,7 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
                         addNotificationTemplate(template, tenantDomain);
                         if (log.isDebugEnabled()) {
                             String msg = "Default template added to %s tenant registry : %n%s";
-                            log.debug(String.format(msg, tenantDomain, template.toString()));
+                            log.debug(String.format(msg, tenantDomain, template));
                         }
                         numberOfAddedTemplates++;
                     } catch (NotificationTemplateManagerInternalException e) {
@@ -237,6 +264,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         return numberOfAddedTemplates;
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public void deleteNotificationTemplate(String displayName, String locale, String notificationChannel,
                                            String tenantDomain) throws NotificationTemplateManagerException {
@@ -251,6 +281,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public NotificationTemplate getNotificationTemplate(String displayName, String locale, String notificationChannel,
                                                         String tenantDomain)
@@ -277,6 +310,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         return null;
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public List<EmailTemplate> getEmailTemplates(String displayName, String tenantDomain)
             throws NotificationTemplateManagerException {
@@ -310,6 +346,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         return templateList;
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public boolean isNotificationTemplateExists(String displayName, String locale, String notificationChannel,
                                                 String tenantDomain) throws NotificationTemplateManagerException {
@@ -327,6 +366,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     @Override
     public List<EmailTemplate> getAllEmailTemplates(String tenantDomain) throws NotificationTemplateManagerException {
 
@@ -352,9 +394,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
     /**
      * Create a registry resource instance of the notification template.
      *
-     * @param notificationTemplate Notification template
-     * @return Resource
-     * @throws NotificationTemplateManagerServerException If an error occurred while creating the resource
+     * @param notificationTemplate Notification template.
+     * @return Resource.
+     * @throws NotificationTemplateManagerServerException If an error occurred while creating the resource.
      */
     private Resource createTemplateRegistryResource(NotificationTemplate notificationTemplate)
             throws NotificationTemplateManagerServerException {
@@ -399,10 +441,10 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
     /**
      * Get the notification template from resource.
      *
-     * @param templateResource    {@link org.wso2.carbon.registry.core.Resource} object
-     * @param notificationChannel Notification channel
-     * @return {@link org.wso2.carbon.identity.governance.model.NotificationTemplate} object
-     * @throws NotificationTemplateManagerException Error getting the notification template
+     * @param templateResource    Registry resource.
+     * @param notificationChannel Notification channel.
+     * @return Notification template.
+     * @throws NotificationTemplateManagerException Error getting the notification template.
      */
     private NotificationTemplate getNotificationTemplate(Resource templateResource, String notificationChannel)
             throws NotificationTemplateManagerException {
@@ -444,12 +486,12 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
     /**
      * Process template resource content and retrieve template elements.
      *
-     * @param templateResource    Resource of the template
-     * @param notificationChannel Notification channel
-     * @param displayName         Display name of the template
-     * @param locale              Locale of the template
-     * @return Template content
-     * @throws NotificationTemplateManagerException If an error occurred while getting the template content
+     * @param templateResource    Resource of the template.
+     * @param notificationChannel Notification channel.
+     * @param displayName         Display name of the template.
+     * @param locale              Locale of the template.
+     * @return Template content.
+     * @throws NotificationTemplateManagerException If an error occurred while getting the template content.
      */
     private String[] getTemplateElements(Resource templateResource, String notificationChannel, String displayName,
                                          String locale) throws NotificationTemplateManagerException {
@@ -458,7 +500,7 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
             Object content = templateResource.getContent();
             if (content != null) {
                 byte[] templateContentArray = (byte[]) content;
-                String templateContent = new String(templateContentArray, Charset.forName("UTF-8"));
+                String templateContent = new String(templateContentArray, StandardCharsets.UTF_8);
 
                 String[] templateContentElements;
                 try {
@@ -508,7 +550,7 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
      * @param templateTypeRegistryPath Registry path of the template type.
      * @param tenantDomain             Tenant domain.
      * @return List of extracted EmailTemplate objects.
-     * @throws RegistryException if any error occurred.
+     * @throws RegistryException If any error occurred.
      */
     private List<EmailTemplate> getAllTemplatesOfTemplateTypeFromRegistry(String templateTypeRegistryPath,
                                                                           String tenantDomain)
@@ -542,9 +584,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
     /**
      * Build the template type root directory path.
      *
-     * @param type                Template type
-     * @param notificationChannel Notification channel (SMS or EMAIL)
-     * @return Root directory path
+     * @param type                Template type.
+     * @param notificationChannel Notification channel (SMS or EMAIL).
+     * @return Root directory path.
      */
     private String buildTemplateRootDirectoryPath(String type, String notificationChannel) {
 
@@ -557,9 +599,9 @@ public class NotificationTemplateRegistryDAOImpl  implements NotificationTemplat
     /**
      * Add the locale to the template type resource path.
      *
-     * @param path  Email template path
-     * @param locale Locale code of the email template
-     * @return Email template resource path
+     * @param path      Email template path.
+     * @param locale    Locale code of the email template.
+     * @return Email template resource path.
      */
     private String addLocaleToTemplateTypeResourcePath(String path, String locale) {
 
