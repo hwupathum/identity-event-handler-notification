@@ -22,6 +22,8 @@ import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.email.mgt.constants.I18nMgtConstants;
 import org.wso2.carbon.email.mgt.dao.NotificationTemplateDAO;
 import org.wso2.carbon.email.mgt.dao.impl.NotificationTemplateDAOImpl;
+import org.wso2.carbon.email.mgt.dao.impl.NotificationTemplateFallbackDAOImpl;
+import org.wso2.carbon.email.mgt.dao.impl.NotificationTemplateRegistryDAOImpl;
 import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtClientException;
 import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtException;
 import org.wso2.carbon.email.mgt.exceptions.I18nEmailMgtInternalException;
@@ -31,6 +33,7 @@ import org.wso2.carbon.email.mgt.internal.I18nMgtDataHolder;
 import org.wso2.carbon.email.mgt.model.EmailTemplate;
 import org.wso2.carbon.email.mgt.util.I18nEmailUtil;
 import org.wso2.carbon.identity.base.IdentityValidationUtil;
+import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.governance.IdentityGovernanceUtil;
 import org.wso2.carbon.identity.governance.IdentityMgtConstants;
 import org.wso2.carbon.identity.governance.exceptions.notiification.NotificationTemplateManagerClientException;
@@ -56,15 +59,36 @@ import static org.wso2.carbon.identity.base.IdentityValidationUtil.ValidatorPatt
  */
 public class EmailTemplateManagerImpl implements EmailTemplateManager, NotificationTemplateManager {
 
-    private final NotificationTemplateDAO notificationTemplateDAO = new NotificationTemplateDAOImpl();
+    private final NotificationTemplateDAO notificationTemplateDAO;
     private static final Log log = LogFactory.getLog(EmailTemplateManagerImpl.class);
 
     private static final String TEMPLATE_REGEX_KEY = I18nMgtConstants.class.getName() + "_" + EMAIL_TEMPLATE_NAME;
     private static final String REGISTRY_INVALID_CHARS = I18nMgtConstants.class.getName() + "_" + "registryInvalidChar";
+    private static final String EMAIL_TEMPLATE_LOCATION_CONFIG = "RegistryDataStoreLocation.EmailTemplates";
 
     static {
         IdentityValidationUtil.addPattern(TEMPLATE_REGEX_KEY, EMAIL_TEMPLATE_TYPE_REGEX);
         IdentityValidationUtil.addPattern(REGISTRY_INVALID_CHARS, REGISTRY_INVALID_CHARS_EXISTS.getRegex());
+    }
+
+    public EmailTemplateManagerImpl() {
+
+        String emailTemplatesDatabase = IdentityUtil.getProperty(EMAIL_TEMPLATE_LOCATION_CONFIG);
+        if (StringUtils.isBlank(emailTemplatesDatabase)) {
+            emailTemplatesDatabase = "registry";
+        }
+        this.notificationTemplateDAO = createNotificationTemplateDAO(emailTemplatesDatabase);
+    }
+
+    private NotificationTemplateDAO createNotificationTemplateDAO(String emailTemplatesDatabase) {
+        switch (emailTemplatesDatabase) {
+            case "database":
+                return new NotificationTemplateDAOImpl();
+            case "fallback":
+                return new NotificationTemplateFallbackDAOImpl();
+            default:
+                return new NotificationTemplateRegistryDAOImpl();
+        }
     }
 
     @Override

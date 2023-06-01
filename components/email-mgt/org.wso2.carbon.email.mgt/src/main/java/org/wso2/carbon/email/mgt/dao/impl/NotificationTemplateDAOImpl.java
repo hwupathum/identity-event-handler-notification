@@ -52,7 +52,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
 
         String tenantUUID = getTenantUUID(tenantDomain);
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(true)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(true)) {
             try {
                 // Check if the notification template type already exists.
                 if (processGetTemplateTypeID(connection, displayName, notificationChannel, tenantUUID) != null) {
@@ -61,9 +61,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                 // Add the notification template type.
                 processAddTemplateType(connection, displayName, notificationChannel, tenantUUID);
 
-                IdentityDatabaseUtil.commitUserDBTransaction(connection);
+                IdentityDatabaseUtil.commitGovernanceDBTransaction(connection);
             } catch (SQLException e) {
-                IdentityDatabaseUtil.rollbackUserDBTransaction(connection);
+                IdentityDatabaseUtil.rollbackGovernanceDBTransaction(connection);
                 throw new NotificationTemplateManagerServerException("Error while adding notification template type.", e);
             }
         } catch (SQLException e) {
@@ -78,7 +78,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         String tenantUUID = getTenantUUID(tenantDomain);
         String templateType = I18nEmailUtil.getNormalizedName(displayName);
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(true)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(true)) {
             try (NamedPreparedStatement statement = new NamedPreparedStatement(connection,
                     NotificationTemplateConstants.SqlQueries.DELETE_NOTIFICATION_TEMPLATE_TYPE_BY_NAME)) {
                 statement.setString(NotificationTemplateConstants.TemplateTypeTableColumns.TEMPLATE_TYPE, templateType);
@@ -90,9 +90,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
 
                 processDeleteTemplatesOfType(connection, displayName, notificationChannel, tenantUUID);
 
-                IdentityDatabaseUtil.commitUserDBTransaction(connection);
+                IdentityDatabaseUtil.commitGovernanceDBTransaction(connection);
             } catch (SQLException e) {
-                IdentityDatabaseUtil.rollbackUserDBTransaction(connection);
+                IdentityDatabaseUtil.rollbackGovernanceDBTransaction(connection);
                 throw new NotificationTemplateManagerException("Error while deleting notification template type.", e);
             }
         } catch (SQLException e) {
@@ -107,7 +107,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         String tenantUUID = getTenantUUID(tenantDomain);
         List<String> templateTypes = new ArrayList<>();
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(false)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(false)) {
             try (NamedPreparedStatement statement = new NamedPreparedStatement(connection,
                     NotificationTemplateConstants.SqlQueries.GET_NOTIFICATION_TEMPLATE_TYPES)) {
                 statement.setString(NotificationTemplateConstants.TemplateTypeTableColumns.CHANNEL,
@@ -135,7 +135,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
 
         String tenantUUID = getTenantUUID(tenantDomain);
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(false)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(false)) {
             return processGetTemplateTypeID(connection, displayName, notificationChannel, tenantUUID) != null;
         } catch (SQLException e) {
             throw new NotificationTemplateManagerException("Error while retrieving notification template type.", e);
@@ -151,7 +151,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         String notificationChannel = notificationTemplate.getNotificationChannel();
         String locale = notificationTemplate.getLocale();
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(true)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(true)) {
             try {
                 String templateTypeID = processGetTemplateTypeID(connection, displayName, notificationChannel,
                         tenantUUID);
@@ -179,9 +179,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                         log.debug(String.format(msg, locale, displayName, tenantDomain));
                     }
                 }
-                IdentityDatabaseUtil.commitUserDBTransaction(connection);
+                IdentityDatabaseUtil.commitGovernanceDBTransaction(connection);
             } catch (SQLException e) {
-                IdentityDatabaseUtil.rollbackUserDBTransaction(connection);
+                IdentityDatabaseUtil.rollbackGovernanceDBTransaction(connection);
                 throw new NotificationTemplateManagerException("Error while updating notification template.", e);
             }
         } catch (SQLException e) {
@@ -197,7 +197,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         String notificationChannel = notificationTemplate.getNotificationChannel();
         String locale = notificationTemplate.getLocale();
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(true)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(true)) {
             try {
                 String templateTypeID = processGetTemplateTypeID(connection, displayName, notificationChannel,
                         tenantUUID);
@@ -215,9 +215,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                     throw new NotificationTemplateManagerInternalException("Notification template already exists.");
                 }
                 processAddTemplate(connection, templateTypeID, notificationTemplate);
-                IdentityDatabaseUtil.commitUserDBTransaction(connection);
+                IdentityDatabaseUtil.commitGovernanceDBTransaction(connection);
             } catch (SQLException e) {
-                IdentityDatabaseUtil.rollbackUserDBTransaction(connection);
+                IdentityDatabaseUtil.rollbackGovernanceDBTransaction(connection);
                 throw new NotificationTemplateManagerException("Error while adding notification template.", e);
             }
         } catch (SQLException e) {
@@ -258,7 +258,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         String tenantUUID = getTenantUUID(tenantDomain);
         String templateType = I18nEmailUtil.getNormalizedName(displayName);
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(true)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(true)) {
             try (NamedPreparedStatement statement = new NamedPreparedStatement(connection,
                     NotificationTemplateConstants.SqlQueries.DELETE_NOTIFICATION_TEMPLATE)) {
                 statement.setString(NotificationTemplateConstants.TemplateTypeTableColumns.TEMPLATE_TYPE, templateType);
@@ -267,9 +267,9 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                 statement.setString(NotificationTemplateConstants.TemplateTableColumns.LOCALE, locale);
                 statement.executeUpdate();
 
-                IdentityDatabaseUtil.commitUserDBTransaction(connection);
+                IdentityDatabaseUtil.commitGovernanceDBTransaction(connection);
             } catch (SQLException e) {
-                IdentityDatabaseUtil.rollbackUserDBTransaction(connection);
+                IdentityDatabaseUtil.rollbackGovernanceDBTransaction(connection);
                 throw new NotificationTemplateManagerException("Error while deleting notification template.", e);
             }
         } catch (SQLException e) {
@@ -286,7 +286,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         String templateType = I18nEmailUtil.getNormalizedName(displayName);
         NotificationTemplate notificationTemplate = null;
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(false)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(false)) {
             try (NamedPreparedStatement statement = new NamedPreparedStatement(connection,
                     NotificationTemplateConstants.SqlQueries.GET_NOTIFICATION_TEMPLATE)) {
                 statement.setString(NotificationTemplateConstants.TemplateTypeTableColumns.TEMPLATE_TYPE, templateType);
@@ -326,7 +326,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         String tenantUUID = getTenantUUID(tenantDomain);
         List<NotificationTemplate> notificationTemplates = new ArrayList<>();
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(false)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(false)) {
             try (NamedPreparedStatement statement = new NamedPreparedStatement(connection,
                     NotificationTemplateConstants.SqlQueries.GET_ALL_NOTIFICATION_TEMPLATES)) {
                 statement.setString(NotificationTemplateConstants.TemplateTypeTableColumns.CHANNEL, notificationChannel);
@@ -368,7 +368,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
         String tenantUUID = getTenantUUID(tenantDomain);
         List<NotificationTemplate> notificationTemplates = new ArrayList<>();
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(false)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(false)) {
             try {
                 String templateTypeID = processGetTemplateTypeID(connection, displayName, notificationChannel,
                         tenantUUID);
@@ -398,7 +398,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
             return false;
         }
 
-        try (Connection connection = IdentityDatabaseUtil.getDBConnection(false)) {
+        try (Connection connection = IdentityDatabaseUtil.getGovernanceDBConnection(false)) {
             String templateTypeID = processGetTemplateTypeID(connection, displayName, notificationChannel,
                     tenantUUID);
             if (templateTypeID == null) {
