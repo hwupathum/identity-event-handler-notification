@@ -18,6 +18,8 @@
 
 package org.wso2.carbon.email.mgt.dao.impl;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.database.utils.jdbc.NamedPreparedStatement;
@@ -27,6 +29,7 @@ import org.wso2.carbon.email.mgt.model.EmailTemplate;
 import org.wso2.carbon.email.mgt.util.I18nEmailUtil;
 import org.wso2.carbon.identity.core.util.IdentityDatabaseUtil;
 import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
+import org.wso2.carbon.identity.governance.IdentityMgtConstants;
 import org.wso2.carbon.identity.governance.exceptions.notiification.NotificationTemplateManagerException;
 import org.wso2.carbon.identity.governance.exceptions.notiification.NotificationTemplateManagerInternalException;
 import org.wso2.carbon.identity.governance.exceptions.notiification.NotificationTemplateManagerServerException;
@@ -329,17 +332,22 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                 statement.setString(NotificationTemplateConstants.TemplateTableColumns.LOCALE, locale);
                 try (ResultSet resultSet = statement.executeQuery()) {
                     if (resultSet.next()) {
+                        String[] templateContentElements = getTemplateElements(resultSet.getString(
+                                        NotificationTemplateConstants.TemplateTableColumns.CONTENT),
+                                notificationChannel);
+
                         notificationTemplate = new NotificationTemplate();
                         notificationTemplate.setDisplayName(displayName);
                         notificationTemplate.setType(templateType);
                         notificationTemplate.setNotificationChannel(notificationChannel);
                         notificationTemplate.setLocale(locale);
-                        notificationTemplate.setSubject(resultSet.getString(
-                                NotificationTemplateConstants.TemplateTableColumns.SUBJECT));
-                        notificationTemplate.setBody(resultSet.getString(
-                                NotificationTemplateConstants.TemplateTableColumns.BODY));
-                        notificationTemplate.setFooter(resultSet.getString(
-                                NotificationTemplateConstants.TemplateTableColumns.FOOTER));
+                        if (NotificationChannels.EMAIL_CHANNEL.getChannelType().equals(notificationChannel)) {
+                            notificationTemplate.setSubject(templateContentElements[0]);
+                            notificationTemplate.setBody(templateContentElements[1]);
+                            notificationTemplate.setFooter(templateContentElements[2]);
+                        } else if (NotificationChannels.SMS_CHANNEL.getChannelType().equals(notificationChannel)) {
+                            notificationTemplate.setBody(templateContentElements[0]);
+                        }
                         notificationTemplate.setContentType(resultSet.getString(
                                 NotificationTemplateConstants.TemplateTableColumns.CONTENT_TYPE));
                     }
@@ -375,6 +383,10 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                 statement.setString(NotificationTemplateConstants.TemplateTypeTableColumns.TENANT_UUID, tenantUUID);
                 try (ResultSet resultSet = statement.executeQuery()) {
                     while (resultSet.next()) {
+                        String[] templateContentElements = getTemplateElements(resultSet.getString(
+                                        NotificationTemplateConstants.TemplateTableColumns.CONTENT),
+                                notificationChannel);
+
                         NotificationTemplate notificationTemplate = new NotificationTemplate();
                         notificationTemplate.setDisplayName(resultSet.getString(
                                 NotificationTemplateConstants.TemplateTypeTableColumns.DISPLAY_NAME));
@@ -383,12 +395,13 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                         notificationTemplate.setNotificationChannel(notificationChannel);
                         notificationTemplate.setLocale(resultSet.getString(
                                 NotificationTemplateConstants.TemplateTableColumns.LOCALE));
-                        notificationTemplate.setSubject(resultSet.getString(
-                                NotificationTemplateConstants.TemplateTableColumns.SUBJECT));
-                        notificationTemplate.setBody(resultSet.getString(
-                                NotificationTemplateConstants.TemplateTableColumns.BODY));
-                        notificationTemplate.setFooter(resultSet.getString(
-                                NotificationTemplateConstants.TemplateTableColumns.FOOTER));
+                        if (NotificationChannels.EMAIL_CHANNEL.getChannelType().equals(notificationChannel)) {
+                            notificationTemplate.setSubject(templateContentElements[0]);
+                            notificationTemplate.setBody(templateContentElements[1]);
+                            notificationTemplate.setFooter(templateContentElements[2]);
+                        } else if (NotificationChannels.SMS_CHANNEL.getChannelType().equals(notificationChannel)) {
+                            notificationTemplate.setBody(templateContentElements[0]);
+                        }
                         notificationTemplate.setContentType(resultSet.getString(
                                 NotificationTemplateConstants.TemplateTableColumns.CONTENT_TYPE));
                         notificationTemplates.add(notificationTemplate);
@@ -629,12 +642,8 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                     templateTypeID);
             statement.setString(NotificationTemplateConstants.TemplateTableColumns.LOCALE,
                     notificationTemplate.getLocale());
-            statement.setString(NotificationTemplateConstants.TemplateTableColumns.SUBJECT,
-                    notificationTemplate.getSubject());
-            statement.setString(NotificationTemplateConstants.TemplateTableColumns.BODY,
-                    notificationTemplate.getBody());
-            statement.setString(NotificationTemplateConstants.TemplateTableColumns.FOOTER,
-                    notificationTemplate.getFooter());
+            statement.setString(NotificationTemplateConstants.TemplateTableColumns.CONTENT,
+                    getTemplateContent(notificationTemplate));
             statement.setString(NotificationTemplateConstants.TemplateTableColumns.CONTENT_TYPE,
                     notificationTemplate.getContentType());
             statement.executeUpdate();
@@ -659,12 +668,8 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
                     templateTypeID);
             statement.setString(NotificationTemplateConstants.TemplateTableColumns.LOCALE,
                     notificationTemplate.getLocale());
-            statement.setString(NotificationTemplateConstants.TemplateTableColumns.SUBJECT,
-                    notificationTemplate.getSubject());
-            statement.setString(NotificationTemplateConstants.TemplateTableColumns.BODY,
-                    notificationTemplate.getBody());
-            statement.setString(NotificationTemplateConstants.TemplateTableColumns.FOOTER,
-                    notificationTemplate.getFooter());
+            statement.setString(NotificationTemplateConstants.TemplateTableColumns.CONTENT,
+                    getTemplateContent(notificationTemplate));
             statement.setString(NotificationTemplateConstants.TemplateTableColumns.CONTENT_TYPE,
                     notificationTemplate.getContentType());
             statement.executeUpdate();
@@ -683,7 +688,7 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
      */
     private List<NotificationTemplate> processGetTemplates(Connection connection, String displayName,
                                                            String notificationChannel, String tenantUUID)
-            throws SQLException {
+            throws SQLException, NotificationTemplateManagerException {
 
         String templateType = I18nEmailUtil.getNormalizedName(displayName);
         List<NotificationTemplate> notificationTemplates = new ArrayList<>();
@@ -695,18 +700,23 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
             statement.setString(NotificationTemplateConstants.TemplateTypeTableColumns.TENANT_UUID, tenantUUID);
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
+                    String[] templateContentElements = getTemplateElements(resultSet.getString(
+                                    NotificationTemplateConstants.TemplateTableColumns.CONTENT),
+                            notificationChannel);
+
                     NotificationTemplate notificationTemplate = new NotificationTemplate();
                     notificationTemplate.setDisplayName(displayName);
                     notificationTemplate.setNotificationChannel(notificationChannel);
                     notificationTemplate.setType(templateType);
                     notificationTemplate.setLocale(resultSet.getString(
                             NotificationTemplateConstants.TemplateTableColumns.LOCALE));
-                    notificationTemplate.setSubject(resultSet.getString(
-                            NotificationTemplateConstants.TemplateTableColumns.SUBJECT));
-                    notificationTemplate.setBody(resultSet.getString(
-                            NotificationTemplateConstants.TemplateTableColumns.BODY));
-                    notificationTemplate.setFooter(resultSet.getString(
-                            NotificationTemplateConstants.TemplateTableColumns.FOOTER));
+                    if (NotificationChannels.EMAIL_CHANNEL.getChannelType().equals(notificationChannel)) {
+                        notificationTemplate.setSubject(templateContentElements[0]);
+                        notificationTemplate.setBody(templateContentElements[1]);
+                        notificationTemplate.setFooter(templateContentElements[2]);
+                    } else if (NotificationChannels.SMS_CHANNEL.getChannelType().equals(notificationChannel)) {
+                        notificationTemplate.setBody(templateContentElements[0]);
+                    }
                     notificationTemplate.setContentType(resultSet.getString(
                             NotificationTemplateConstants.TemplateTableColumns.CONTENT_TYPE));
                     notificationTemplates.add(notificationTemplate);
@@ -740,5 +750,53 @@ public class NotificationTemplateDAOImpl implements NotificationTemplateDAO {
             }
         }
         throw new NotificationTemplateManagerException("Invalid tenant domain: " + tenantDomain);
+    }
+
+    /**
+     * Process template resource content and retrieve template elements.
+     *
+     * @param templateContent       Resource of the template.
+     * @param notificationChannel   Notification channel.
+     * @return Template elements.
+     * @throws NotificationTemplateManagerException If an error occurred while getting the template content.
+     */
+    private String[] getTemplateElements(String templateContent, String notificationChannel)
+            throws NotificationTemplateManagerException {
+
+        String[] templateContentElements;
+        try {
+            templateContentElements = new Gson().fromJson(templateContent, String[].class);
+        } catch (JsonSyntaxException exception) {
+            throw new NotificationTemplateManagerServerException("Error while parsing template content for " +
+                    "notification channel: " + notificationChannel, exception);
+        }
+
+        // Validate template content.
+        int expectedLength = (NotificationChannels.SMS_CHANNEL.getChannelType().equals(notificationChannel)) ? 1 : 3;
+
+        if (templateContentElements == null || templateContentElements.length != expectedLength) {
+            throw new NotificationTemplateManagerServerException("Error while parsing template content for " +
+                    "notification channel: " + notificationChannel);
+        }
+        return templateContentElements;
+    }
+
+    /**
+     * Get template content from the given notification template.
+     *
+     * @param notificationTemplate  Notification template.
+     * @return Template content.
+     */
+    private String getTemplateContent(NotificationTemplate notificationTemplate) {
+
+        String[] templateContent;
+        // Handle contents according to different channel types.
+        if (NotificationChannels.EMAIL_CHANNEL.getChannelType().equals(notificationTemplate.getNotificationChannel())) {
+            templateContent = new String[]{notificationTemplate.getSubject(), notificationTemplate.getBody(),
+                    notificationTemplate.getFooter()};
+        } else {
+            templateContent = new String[]{notificationTemplate.getBody()};
+        }
+        return new Gson().toJson(templateContent);
     }
 }
